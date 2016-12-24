@@ -44,7 +44,38 @@ class DefaultController extends Controller
      */
     public function api(Request $request)
     {
-        return $this->doSearch($request);
+        // Sonarr parameters
+        $type = $request->get('t');
+        $categories = preg_split('/,/', $request->get('cat'));
+        $extended = $request->get('extended') === '1';
+        $apikey = $request->get('apikey');
+        $offset = intval($request->get('offset'));
+        $limit = intval($request->get('limit'));
+        $season = $request->get('season');
+        $episode = $request->get('ep');
+        $rageId = $request->get('rid');
+
+        if (($type === 'tvsearch') && (null !== $rageId)) {
+            $result = $this->searchEpisodes($this->getSerieNameFromRageId($rageId), $season, $episode, $offset, $limit);
+
+            $xmlResults = '';
+            foreach ($result->torrents as $torrent) {
+                if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
+                    $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
+                }
+            }
+
+            $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
+            $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
+            $xmlResult = str_replace('%%count%%', $result->total, $xmlResult);
+
+            $response = new Response($xmlResult);
+            $response->headers->set('Content-Type', 'text/xml');
+
+            return $response;
+        } else {
+            throw new \Exception('Query type not found: "' . $type . '"');
+        }
     }
 
     /**
@@ -73,60 +104,31 @@ class DefaultController extends Controller
      */
     public function home(Request $request)
     {
-        return $this->doSearch($request);
-    }
-
-    /**
-     * @param Request $request
-     *
-     * @return Response
-     *
-     * @throws \Exception
-     */
-    public function doSearch(Request $request)
-    {
-        // Sonarr parameters
-        $type = $request->get('t');
-        $categories = preg_split('/,/', $request->get('cat'));
-        $extended = $request->get('extended') === '1';
-        $apikey = $request->get('apikey');
-        $offset = intval($request->get('offset'));
-        $limit = intval($request->get('limit'));
-        $season = $request->get('season');
-        $episode = $request->get('ep');
-        $rageId = $request->get('rid');
-
-        // Couchpotato parameters
         $imdbId = $request->get('imdbid');
         $search = $request->get('search');
         $user = $request->get('user');
         $passkey = $request->get('passkey');
 
-        if (($type === 'tvsearch') && (null !== $rageId)) {
-            // Sonarr
-            $result = $this->searchEpisodes($this->getSerieNameFromRageId($rageId), $season, $episode, $offset, $limit);
-        } else if (null !== $search) {
-            // Couchpotato
+        if (null !== $search) {
             $result = $this->searchMovie($search);
-        } else {
-            throw new \Exception('Query type not found: "' . $type . '"');
-        }
 
-        $xmlResults = '';
-        foreach ($result->torrents as $torrent) {
-            if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
-                $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
+            $results = [
+                'results' => [],
+                'total_results' => 0
+            ];
+
+            foreach ($result->torrents as $torrent) {
+                $results['results'][] = $this->toTorrentPotato($torrent, $request->getScheme() . '://' . $request->getHttpHost(), $imdbId);
+                $results['total_results'] = 1;
             }
+
+            $response = new Response(json_encode($results));
+            $response->headers->set('Content-Type', 'application/json');
+
+            return $response;
+        } else {
+            throw new \Exception('Search param required');
         }
-
-        $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
-        $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
-        $xmlResult = str_replace('%%count%%', $result->total, $xmlResult);
-
-        $response = new Response($xmlResult);
-        $response->headers->set('Content-Type', 'text/xml');
-
-        return $response;
     }
 
     /**
@@ -407,5 +409,26 @@ class DefaultController extends Controller
         }
 
         return $this->metadata;
+    }
+
+    /**
+     * @param $torrent
+     *
+     * @return array
+     */
+    private function toTorrentPotato($torrent, $host, $imdbid)
+    {
+        return [
+            "release_name" => $torrent->rewritename,
+            "torrent_id" => $torrent->id,
+            "details_url" => $host . '/torrent/' . $torrent->id,
+            "download_url" => $host . '/torrent/' . $torrent->id,
+            "imdb_id" => $imdbid,
+            "freeleech" => true,
+            "type" => "movie",
+            "size" => $torrent->size,
+            "leechers" => $torrent->leechers,
+            "seeders" => $torrent->seeders,
+        ];
     }
 }
