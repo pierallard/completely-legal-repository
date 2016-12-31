@@ -9,3 +9,7 @@ parameters:
 
     # A secret key that's used to generate certain security-related tokens
     secret:            ThisTokenIsNotSoSecretChangeIt
+
+    t411_username: t411_username
+    t411_password: t411_password
+    t411_base_url: http://api.t411.li

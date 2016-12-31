@@ -15,8 +15,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class DefaultController extends Controller
 {
-    const T411_BASE_URL = "http://api.t411.li";
-
     /** @var string */
     protected $token;
 
@@ -55,8 +53,12 @@ class DefaultController extends Controller
         $episode = $request->get('ep');
         $rageId = $request->get('rid');
 
-        if (($type === 'tvsearch') && (null !== $rageId)) {
-            $result = $this->searchEpisodes($this->getSerieNameFromRageId($rageId), $season, $episode, $offset, $limit);
+        if ($type === 'tvsearch') {
+            $serieName = '';
+            if (null !== $rageId) {
+                $serieName = $this->getSerieNameFromRageId($rageId);
+            }
+            $result = $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
 
             $xmlResults = '';
             foreach ($result->torrents as $torrent) {
@@ -224,8 +226,8 @@ class DefaultController extends Controller
             'POST',
             '/auth', [
                 'form_params' => [
-                    'username' => 'USERNAME',
-                    'password' => 'PASSWORD'
+                    'username' => $this->getParameter('t411_username'),
+                    'password' => $this->getParameter('t411_password'),
                 ]
             ]
         );
@@ -341,7 +343,7 @@ class DefaultController extends Controller
     protected function getT411Client()
     {
         if (null === $this->t411client) {
-            $this->t411client = new Client(['base_uri' => self::T411_BASE_URL]);
+            $this->t411client = new Client(['base_uri' => $this->getParameter('t411_base_url')]);
         }
 
         return $this->t411client;
