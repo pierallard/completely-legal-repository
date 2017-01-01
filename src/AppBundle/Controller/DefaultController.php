@@ -61,15 +61,20 @@ class DefaultController extends Controller
             $result = $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
 
             $xmlResults = '';
-            foreach ($result->torrents as $torrent) {
-                if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
-                    $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
+            $count = 0;
+
+            if (isset($result->torrents)) {
+                foreach ($result->torrents as $torrent) {
+                    $count++;
+                    if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
+                        $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
+                    }
                 }
             }
 
             $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
             $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
-            $xmlResult = str_replace('%%count%%', $result->total, $xmlResult);
+            $xmlResult = str_replace('%%count%%', $count, $xmlResult);
 
             $response = new Response($xmlResult);
             $response->headers->set('Content-Type', 'text/xml');
@@ -119,9 +124,11 @@ class DefaultController extends Controller
                 'total_results' => 0
             ];
 
-            foreach ($result->torrents as $torrent) {
-                $results['results'][] = $this->toTorrentPotato($torrent, $request->getScheme() . '://' . $request->getHttpHost(), $imdbId);
-                $results['total_results'] = 1;
+            if (isset($result->torrents)) {
+                foreach ($result->torrents as $torrent) {
+                    $results['results'][] = $this->toTorrentPotato($torrent, $request->getScheme() . '://' . $request->getHttpHost(), $imdbId);
+                    $results['total_results'] = 1;
+                }
             }
 
             $response = new Response(json_encode($results));
@@ -333,6 +340,8 @@ class DefaultController extends Controller
         if (null === $this->token) {
             $this->login();
         }
+
+        var_dump($this->token);
 
         return $this->token;
     }
