@@ -428,7 +428,7 @@ class DefaultController extends Controller
             "imdb_id" => $imdbid,
             "freeleech" => true,
             "type" => "movie",
-            "size" => $torrent->size,
+            "size" => intval(intval($torrent->size) / (1024 * 1024)),
             "leechers" => $torrent->leechers,
             "seeders" => $torrent->seeders,
         ];
