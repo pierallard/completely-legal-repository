@@ -75,7 +75,7 @@ class TrackerRemover
         $outputLast = $filename . ".last";
         $offset =
             intval($this->getOffsets($filename)[0]) + 3 +
-            intval($this->getOffsets($filename)[1]) + strlen($this->getOffsets($filename)[1]);
+            intval($this->getOffsets($filename)[1]) + strlen($this->getOffsets($filename)[1]) + 1;
         $cmd = "dd skip=" . $offset . " if=" . $filename . " of=" . $outputLast . " bs=1";
         shell_exec($cmd);
 
