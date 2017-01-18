@@ -3,6 +3,7 @@
 namespace AppBundle\Controller;
 
 use AppBundle\Helper\StringCleaner;
+use AppBundle\Helper\TrackerRemover;
 use AppBundle\Metadata\Category;
 use AppBundle\Metadata\Metadata;
 use AppBundle\Metadata\Term;
@@ -12,6 +13,7 @@ use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class DefaultController extends Controller
 {
@@ -33,6 +35,7 @@ class DefaultController extends Controller
     public function __construct()
     {
         $this->stringCleaner = new StringCleaner();
+        $this->trackerRemover = new TrackerRemover();
     }
 
     /**
@@ -146,52 +149,49 @@ class DefaultController extends Controller
     public function torrent(Request $request)
     {
         $filename = '/tmp/torrent' . $request->get('torrentId') . '.torrent';
-        $myFile = fopen($filename, 'w');
+        $file = fopen($filename, 'w');
 
-        $response = $this->getT411Client()->request(
+        $t411Response = $this->getT411Client()->request(
             'GET',
             'torrents/download/' . $request->get('torrentId'), [
                 'headers' => ['Authorization' => $this->getToken()],
-                'save_to' => $myFile
+                'save_to' => $file
             ]
         );
-        fclose($myFile);
+        fclose($file);
 
-        $contentType = $response->getHeaders()['Content-Type'];
-        $contentDispo = $response->getHeaders()['Content-Disposition'];
+        $response = new Response(file_get_contents($this->trackerRemover->removeTracker(
+            $filename,
+            $request->getScheme() . '://' . $request->getHttpHost()
+        )));
 
-        $cmd = "cat " . $filename . "| grep -a -o -E '[0-9]+' |head -n 2";
-        $lines = preg_split("/\n/", shell_exec($cmd));
-        $first = $lines[0];
-        $last = $lines[1];
+        $response->headers->set('Content-Disposition', $t411Response->getHeaders()['Content-Disposition']);
+        $response->headers->set('Content-Type', $t411Response->getHeaders()['Content-Type']);
 
-        $outputFirst = $filename . ".first";
-        $outputLast = $filename . ".last";
-        $outputMiddle = $filename . ".middle";
-        $output = $filename . '.output';
+        return $response;
+    }
 
-        $offset = intval($first) + 3;
-        $cmd = "dd skip=0 count=" . $offset . " if=" . $filename . " of=" . $outputFirst . " bs=1";
-        shell_exec($cmd);
+    /**
+     * @Route("/tracker/{trackerId}", name="tracker")
+     */
+    public function tracker(Request $request)
+    {
+        $parameters = $request->query->all();
+        $parameters['downloaded'] = '0';
 
-        $offset2 = $offset + intval($last) + strlen($last) + 1;
-        $cmd = "dd skip=" . $offset2 . " if=" . $filename . " of=" . $outputLast . " bs=1";
-        shell_exec($cmd);
+        $filename = tempnam('/tmp','tracker');
+        $file = fopen($filename, 'w');
 
-        $fakeString = 'http://www.fakewebsite.yol';
-        $cmd = 'printf \'' . strlen($fakeString) . ':' . $fakeString . '\' > ' . $outputMiddle;
-        shell_exec($cmd);
+        $client = new Client(['base_uri' => 'http://t411.download']);
+        $client->request(
+            'GET',
+            sprintf('%s/announce', $request->get('trackerId')), [
+                'save_to' => $file,
+                'query' => $parameters
+            ]
+        );
 
-        $cmd = 'cat ' . $outputFirst . ' ' . $outputMiddle . ' ' . $outputLast . ' > ' . $output;
-        shell_exec($cmd);
-
-        $cmd = 'rm ' . $outputFirst . ' ' . $outputMiddle . ' ' . $outputLast;
-        shell_exec($cmd);
-
-        $response = new Response(file_get_contents($output));
-
-        $response->headers->set('Content-Disposition', $contentDispo);
-        $response->headers->set('Content-Type', $contentType);
+        $response = new Response(file_get_contents($filename));
 
         return $response;
     }

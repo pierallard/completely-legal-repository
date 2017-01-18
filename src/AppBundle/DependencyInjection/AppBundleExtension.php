@@ -9,8 +9,6 @@ class AppBundleExtension extends Extension
 {
     public function load(array $configs, ContainerBuilder $container)
     {
-//        $configuration = $this->getConfiguration($configs, $container);
-//        $this->processConfiguration($configuration, $configs);
     }
 
     public function getAlias()
