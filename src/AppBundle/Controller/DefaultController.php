@@ -341,8 +341,6 @@ class DefaultController extends Controller
             $this->login();
         }
 
-        var_dump($this->token);
-
         return $this->token;
     }
 
