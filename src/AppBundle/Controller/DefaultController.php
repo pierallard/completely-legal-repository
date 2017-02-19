@@ -2,12 +2,9 @@
 
 namespace AppBundle\Controller;
 
+use AppBundle\Helper\MetadataProvider;
 use AppBundle\Helper\StringCleaner;
 use AppBundle\Helper\TrackerRemover;
-use AppBundle\Metadata\Category;
-use AppBundle\Metadata\Metadata;
-use AppBundle\Metadata\Term;
-use AppBundle\Metadata\TermType;
 use GuzzleHttp\Client;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
@@ -26,8 +23,8 @@ class DefaultController extends Controller
     /** @var StringCleaner */
     protected $stringCleaner;
 
-    /** @var Metadata */
-    protected $metadata;
+    /** @var MetadataProvider */
+    protected $metadataProvider;
 
     /**
      * DefaultController constructor.
@@ -36,6 +33,7 @@ class DefaultController extends Controller
     {
         $this->stringCleaner = new StringCleaner();
         $this->trackerRemover = new TrackerRemover();
+        $this->metadataProvider = new MetadataProvider();
     }
 
     /**
@@ -288,18 +286,19 @@ class DefaultController extends Controller
 
         if (null !== $season) {
             $seasonNumber = intval($season);
+            $metadata = $this->metadataProvider->getMetadata($this->getT411Client(), $this->getToken());
             $query .= sprintf(
                 '&term[%s][]=%s',
-                $this->getMetadata()->getSerieSeasonId(),
-                $this->getMetadata()->getSerieSeason($seasonNumber)
+                $metadata->getSerieSeasonId(),
+                $metadata->getSerieSeason($seasonNumber)
             );
 
             if (null !== $episode) {
                 $episodeNumber = intval($episode);
                 $query .= sprintf(
                     '&term[%s][]=%s',
-                    $this->getMetadata()->getSerieEpisodeId(),
-                    $this->getMetadata()->getSerieEpisode($episodeNumber)
+                    $metadata->getSerieEpisodeId(),
+                    $metadata->getSerieEpisode($episodeNumber)
                 );
             }
         }
@@ -367,57 +366,6 @@ class DefaultController extends Controller
         $obj = json_decode($json);
 
         return $obj->name;
-    }
-
-    /**
-     * @return Metadata
-     */
-    private function getMetadata()
-    {
-        if (null === $this->metadata) {
-            $this->metadata = new Metadata();
-
-            $categoryResponse = $this->getT411Client()->request(
-                'GET',
-                '/categories/tree/', [
-                    'headers' => ['Authorization' => $this->getToken()]
-                ]
-            );
-            $categoryJson = json_decode($categoryResponse->getBody());
-
-            $termResponse = $this->getT411Client()->request(
-                'GET',
-                '/terms/tree/', [
-                    'headers' => ['Authorization' => $this->getToken()]
-                ]
-            );
-
-            $termJson = json_decode($termResponse->getBody());
-
-            foreach ($categoryJson as $categoryId => $categoryConfig) {
-                $name = isset($categoryConfig->name) ? $categoryConfig->name : '';
-                $category = new Category($categoryId, $name);
-                foreach ($categoryConfig->cats as $subCategoryId => $subCategoryConfig) {
-                    $subCategory = new Category($subCategoryId, $subCategoryConfig->name);
-                    foreach ($termJson as $termCategoryId => $termTypes) {
-                        if ($termCategoryId === $subCategoryId) {
-                            foreach ($termTypes as $termTypeId => $termTypeConfig) {
-                                $termType = new TermType($termTypeId, $termTypeConfig->type);
-                                foreach ($termTypeConfig->terms as $termId => $termName) {
-                                    $termType->addTerm(new Term($termId, $termName));
-                                }
-                                $subCategory->addTermType($termType);
-                            }
-                        }
-                    }
-                    $category->addSubCategory($subCategory);
-                }
-                $this->metadata->addCategory($category);
-            }
-
-        }
-
-        return $this->metadata;
     }
 
     /**
