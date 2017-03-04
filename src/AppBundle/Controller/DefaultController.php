@@ -53,11 +53,14 @@ class DefaultController extends Controller
         $season = $request->get('season');
         $episode = $request->get('ep');
         $rageId = $request->get('rid');
+        $query = $request->get('q');
 
         if ($type === 'tvsearch') {
             $serieName = '';
             if (null !== $rageId) {
                 $serieName = $this->getSerieNameFromRageId($rageId);
+            } else if (null !== $query) {
+                $serieName = $query;
             }
             $result = $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
 
