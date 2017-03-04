@@ -128,7 +128,7 @@ class DefaultController extends Controller
             if (isset($result->torrents)) {
                 foreach ($result->torrents as $torrent) {
                     $results['results'][] = $this->toTorrentPotato($torrent, $request->getScheme() . '://' . $request->getHttpHost(), $imdbId);
-                    $results['total_results'] = 1;
+                    $results['total_results'] += 1;
                 }
             }
 
