@@ -12,4 +12,5 @@ parameters:
 
     t411_username: t411_username
     t411_password: t411_password
-    t411_base_url: http://api.t411.li
+    t411_base_url: http://api.t411.ai
+    t411_tracker_url: http://tracker.t411.al

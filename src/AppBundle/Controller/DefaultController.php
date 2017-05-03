@@ -183,7 +183,7 @@ class DefaultController extends Controller
         $filename = tempnam('/tmp','tracker');
         $file = fopen($filename, 'w');
 
-        $client = new Client(['base_uri' => 'http://t411.download']);
+        $client = new Client(['base_uri' => $this->getParameter('t411_tracker_url')]);
         $client->request(
             'GET',
             sprintf('%s/announce', $request->get('trackerId')), [
