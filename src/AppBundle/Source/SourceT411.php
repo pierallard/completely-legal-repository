@@ -6,6 +6,7 @@ use AppBundle\Helper\MetadataProvider;
 use AppBundle\Helper\StringCleaner;
 use AppBundle\Helper\TrackerRemover;
 use GuzzleHttp\Client;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 class SourceT411 implements SourceInterface
@@ -38,15 +39,13 @@ class SourceT411 implements SourceInterface
     }
 
     /**
-     * @param string $baseUrl
-     * @param string $username
-     * @param string $password
+     * @param ContainerInterface $container
      */
-    public function init($baseUrl, $username, $password)
+    public function init($container)
     {
-        $this->baseUrl  = $baseUrl;
-        $this->username = $username;
-        $this->password = $password;
+        $this->baseUrl  = $container->getParameter('t411_base_url');
+        $this->username = $container->getParameter('t411_username');
+        $this->password = $container->getParameter('t411_password');
     }
 
     public function searchMovie($search, $imdbId, $scheme, $httpPost)

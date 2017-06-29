@@ -2,6 +2,7 @@
 
 namespace AppBundle\Source;
 
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 interface SourceInterface
@@ -25,5 +26,8 @@ interface SourceInterface
 
     public function searchTv($query, $rageId, $season, $episode, $offset, $limit, $scheme, $httpPost);
 
-    public function init($baseUrl, $username, $password);
+    /**
+     * @param ContainerInterface $container
+     */
+    public function init($container);
 }

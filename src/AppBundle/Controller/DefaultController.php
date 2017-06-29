@@ -5,6 +5,7 @@ namespace AppBundle\Controller;
 use AppBundle\Helper\StringCleaner;
 use AppBundle\Source\SourceInterface;
 use AppBundle\Source\SourceT411;
+use AppBundle\Source\SourceTpb;
 use GuzzleHttp\Client;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
@@ -24,7 +25,8 @@ class DefaultController extends Controller
      */
     public function __construct()
     {
-        $this->source = new SourceT411();
+//        $this->source = new SourceT411();
+        $this->source = new SourceTpb();
         $this->stringCleaner = new StringCleaner();
     }
 
@@ -182,10 +184,6 @@ class DefaultController extends Controller
 
     private function initSource()
     {
-        $this->source->init(
-            $this->getParameter('t411_base_url'),
-            $this->getParameter('t411_username'),
-            $this->getParameter('t411_password')
-        );
+        $this->source->init($this->container);
     }
 }
