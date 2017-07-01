@@ -4,6 +4,7 @@ namespace AppBundle\Source;
 
 use AppBundle\Formatter\Result;
 use AppBundle\Helper\StringCleaner;
+use AppBundle\Helper\URLify;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use voku\helper\HtmlDomParser;
 use voku\helper\SimpleHtmlDom;
@@ -16,9 +17,13 @@ class SourceTpb implements SourceInterface
     /** @var StringCleaner */
     protected $stringCleaner;
 
+    /** @var URLify */
+    protected $urlify;
+
     function __construct()
     {
         $this->stringCleaner = new StringCleaner();
+        $this->urlify = new URLify();
     }
 
     public function getTorrent($torrentId, $sheme, $httpPost)
@@ -31,7 +36,7 @@ class SourceTpb implements SourceInterface
      */
     public function searchMovie($search, $imdbId, $scheme, $httpPost)
     {
-        $query = $this->baseUrl . '/search/' . \URLify::filter($search) . '/0/99/200';
+        $query = $this->baseUrl . '/search/' . $this->urlify->filter($search) . '/0/99/200';
 
         return $this->parseQuery($query, $httpPost);
     }
@@ -41,16 +46,9 @@ class SourceTpb implements SourceInterface
      */
     public function searchTv($serieName, $season, $episode, $offset, $limit, $scheme, $httpPost)
     {
-        $search = $serieName;
-        if (null !== $season) {
-            if (null !== $episode) {
-                $search = sprintf('%s s%02de%02d', $search, $season, $episode);
-            } else {
-                $search = sprintf('%s season %s', $search, $season);
-            }
-        }
-
-        $query = $this->baseUrl . '/search/' . \URLify::filter($search) . '/0/99/200';
+        $query = $this->baseUrl . '/search/' . $this->urlify->filter(
+            $this->getTvSearchQuery($serieName, $season, $episode)
+            ) . '/0/99/200';
 
         return $this->parseQuery($query, $httpPost);
     }
@@ -106,6 +104,26 @@ class SourceTpb implements SourceInterface
                 intval($torrent->find('td', 2)->innerHtml)
             );
         }, (array) $html->find('#searchResult tr:not(.header)'));
+    }
+
+    /**
+     * @param $serieName
+     * @param $season
+     * @param $episode
+     *
+     * @return string
+     */
+    private function getTvSearchQuery($serieName, $season, $episode)
+    {
+        $search = $serieName;
+        if (null !== $season) {
+            if (null !== $episode) {
+                return sprintf('%s s%02de%02d', $search, $season, $episode);
+            }
+            return sprintf('%s season %s', $search, $season);
+        }
+
+        return $search;
     }
 }
 

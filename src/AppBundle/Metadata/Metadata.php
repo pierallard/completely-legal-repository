@@ -31,7 +31,7 @@ class Metadata
                 if (self::CATEGORY_SERIE === $subCategory->getName()) {
                     foreach ($subCategory->getTermsTypes() as $termType) {
                         if (self::TERMTYPE_SEASON === $termType->getName()) {
-                            return $termType->getId();
+                            return $termType->getIdentifier();
                         }
                     }
                 }
@@ -53,7 +53,7 @@ class Metadata
                 if (self::CATEGORY_SERIE === $subCategory->getName()) {
                     foreach ($subCategory->getTermsTypes() as $termType) {
                         if (self::TERMTYPE_EPISODE === $termType->getName()) {
-                            return $termType->getId();
+                            return $termType->getIdentifier();
                         }
                     }
                 }
@@ -79,7 +79,7 @@ class Metadata
                         if (self::TERMTYPE_SEASON === $termType->getName()) {
                             foreach ($termType->getTerms() as $term) {
                                 if (sprintf(self::TERM_SEASON, $seasonNumber) === $term->getName()) {
-                                    return $term->getId();
+                                    return $term->getIdentifier();
                                 }
                             }
                         }
@@ -107,7 +107,7 @@ class Metadata
                         if (self::TERMTYPE_EPISODE === $termType->getName()) {
                             foreach ($termType->getTerms() as $term) {
                                 if (sprintf(self::TERM_EPISODE, $episodeNumber) === $term->getName()) {
-                                    return $term->getId();
+                                    return $term->getIdentifier();
                                 }
                             }
                         }

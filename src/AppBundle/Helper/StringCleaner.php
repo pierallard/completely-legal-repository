@@ -20,13 +20,13 @@ class StringCleaner
             if ($invert == FALSE) {
                 return preg_replace('@<(?!(?:'. implode('|', $tags) .')\b)(\w+)\b.*?>.*?</\1>@si', '', $text);
             }
-            else {
-                return preg_replace('@<('. implode('|', $tags) .')\b.*?>.*?</\1>@si', '', $text);
-            }
+
+            return preg_replace('@<('. implode('|', $tags) .')\b.*?>.*?</\1>@si', '', $text);
         }
         elseif ($invert == FALSE) {
             return preg_replace('@<(\w+)\b.*?>.*?</\1>@si', '', $text);
         }
+        
         return $text;
     }
 

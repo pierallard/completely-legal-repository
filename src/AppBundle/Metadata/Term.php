@@ -5,14 +5,14 @@ namespace AppBundle\Metadata;
 class Term
 {
     /** @var string */
-    protected $id;
+    protected $identifier;
 
     /** @var string */
     protected $name;
 
-    public function __construct($id, $name)
+    public function __construct($identifier, $name)
     {
-        $this->id = $id;
+        $this->identifier = $identifier;
         $this->name = $name;
     }
 
@@ -27,8 +27,8 @@ class Term
     /**
      * @return string
      */
-    public function getId()
+    public function getIdentifier()
     {
-        return $this->id;
+        return $this->identifier;
     }
 }

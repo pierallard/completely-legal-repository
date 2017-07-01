@@ -67,24 +67,24 @@ class DefaultController extends Controller
         // $extended = $request->get('extended') === '1';
         // $apikey = $request->get('apikey');
 
-        if ($type === 'tvsearch' || $type === 'caps') {
-            $serieName = '';
-            if (null !== $rageId) {
-                $serieName = $this->rageProvider->getSerieNameFromRageId($rageId);
-            } else if (null !== $query) {
-                $serieName = $query;
-            }
-
-            $this->initSource();
-            $results = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
-
-            $response = new Response($this->formatterRegistry->get('sonarr')->format($results));
-            $response->headers->set('Content-Type', 'text/xml');
-
-            return $response;
-        } else {
+        if ($type !== 'tvsearch' && $type !== 'caps') {
             throw new \Exception('Query type not found: "' . $type . '"');
         }
+
+        $serieName = '';
+        if (null !== $rageId) {
+            $serieName = $this->rageProvider->getSerieNameFromRageId($rageId);
+        } else if (null !== $query) {
+            $serieName = $query;
+        }
+
+        $this->initSource();
+        $results = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
+
+        $response = new Response($this->formatterRegistry->get('sonarr')->format($results));
+        $response->headers->set('Content-Type', 'text/xml');
+
+        return $response;
     }
 
     /**
@@ -118,17 +118,17 @@ class DefaultController extends Controller
         // $user = $request->get('user');
         // $passkey = $request->get('passkey');
 
-        if (null !== $search) {
-            $this->initSource();
-            $results = $this->source->searchMovie($search, $imdbId, $request->getScheme(), $request->getHttpHost());
-
-            $response = new Response(json_encode($this->formatterRegistry->get('torznab')->format($results)));
-            $response->headers->set('Content-Type', 'application/json');
-
-            return $response;
-        } else {
+        if (null === $search) {
             throw new \Exception('Search param required');
         }
+
+        $this->initSource();
+        $results = $this->source->searchMovie($search, $imdbId, $request->getScheme(), $request->getHttpHost());
+
+        $response = new Response(json_encode($this->formatterRegistry->get('torznab')->format($results)));
+        $response->headers->set('Content-Type', 'application/json');
+
+        return $response;
     }
 
     /**

@@ -4,10 +4,12 @@ namespace AppBundle\Source;
 
 use AppBundle\Helper\MetadataProvider;
 use AppBundle\Helper\StringCleaner;
+use AppBundle\Helper\URLify;
 use AppBundle\Helper\TrackerRemover;
 use GuzzleHttp\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
+
 
 class SourceT411 implements SourceInterface
 {
@@ -26,7 +28,17 @@ class SourceT411 implements SourceInterface
     /** @var Client */
     protected $t411client;
 
-    protected $baseUrl, $username, $password;
+    /** @var string */
+    protected $baseUrl;
+
+    /** @var string */
+    protected $username;
+
+    /** @var string */
+    protected $password;
+
+    /** @var URLify */
+    protected $urlify;
 
     /**
      * DefaultController constructor.
@@ -36,6 +48,7 @@ class SourceT411 implements SourceInterface
         $this->stringCleaner = new StringCleaner();
         $this->trackerRemover = new TrackerRemover();
         $this->metadataProvider = new MetadataProvider();
+        $this->urlify = new URLify();
     }
 
     /**
@@ -177,7 +190,7 @@ class SourceT411 implements SourceInterface
      */
     protected function searchEpisodes($query, $season, $episode, $offset = 0, $limit = 100)
     {
-        $query = '/torrents/search/' . \URLify::filter($query) . '?offset=' . $offset . '&limit=' . $limit;
+        $query = '/torrents/search/' . $this->urlify->filter($query) . '?offset=' . $offset . '&limit=' . $limit;
 
         if (null !== $season) {
             $seasonNumber = intval($season);
@@ -203,7 +216,7 @@ class SourceT411 implements SourceInterface
 
     protected function searchMovieInternal($search, $offset = 0, $limit = 100)
     {
-        $query = '/torrents/search/' . \URLify::filter($search) . '?offset=' . $offset . '&limit=' . $limit;
+        $query = '/torrents/search/' . $this->urlify->filter($search) . '?offset=' . $offset . '&limit=' . $limit;
 
         return $this->queryFiles($query);
     }
