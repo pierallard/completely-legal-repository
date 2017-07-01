@@ -2,6 +2,10 @@
 
 namespace AppBundle\Controller;
 
+use AppBundle\Formatter\FormatterRegistry;
+use AppBundle\Formatter\SonarrXmlFormatter;
+use AppBundle\Formatter\TorznabJsonFormatter;
+use AppBundle\Helper\RageProvider;
 use AppBundle\Helper\StringCleaner;
 use AppBundle\Source\SourceInterface;
 use AppBundle\Source\SourceT411;
@@ -20,6 +24,12 @@ class DefaultController extends Controller
     /** @var StringCleaner */
     protected $stringCleaner;
 
+    /** @var FormatterRegistry */
+    protected $formatterRegistry;
+
+    /** @var RageProvider */
+    protected $rageProvider;
+
     /**
      * DefaultController constructor.
      */
@@ -28,6 +38,12 @@ class DefaultController extends Controller
 //        $this->source = new SourceT411();
         $this->source = new SourceTpb();
         $this->stringCleaner = new StringCleaner();
+        $this->formatterRegistry = new FormatterRegistry();
+        $this->rageProvider = new RageProvider();
+
+        $this->formatterRegistry
+            ->register(new TorznabJsonFormatter())
+            ->register(new SonarrXmlFormatter());
     }
 
     /**
@@ -54,15 +70,15 @@ class DefaultController extends Controller
         if ($type === 'tvsearch' || $type === 'caps') {
             $serieName = '';
             if (null !== $rageId) {
-                $serieName = $this->getSerieNameFromRageId($rageId);
+                $serieName = $this->rageProvider->getSerieNameFromRageId($rageId);
             } else if (null !== $query) {
                 $serieName = $query;
             }
 
             $this->initSource();
-            $xmlResult = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
+            $results = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
 
-            $response = new Response($xmlResult);
+            $response = new Response($this->formatterRegistry->get('sonarr')->format($results));
             $response->headers->set('Content-Type', 'text/xml');
 
             return $response;
@@ -105,7 +121,8 @@ class DefaultController extends Controller
         if (null !== $search) {
             $this->initSource();
             $results = $this->source->searchMovie($search, $imdbId, $request->getScheme(), $request->getHttpHost());
-            $response = new Response(json_encode($results));
+
+            $response = new Response(json_encode($this->formatterRegistry->get('torznab')->format($results)));
             $response->headers->set('Content-Type', 'application/json');
 
             return $response;
@@ -151,18 +168,5 @@ class DefaultController extends Controller
     private function initSource()
     {
         $this->source->init($this->container);
-    }
-
-    /**
-     * @param $rageId
-     *
-     * @return string
-     */
-    protected function getSerieNameFromRageId($rageId)
-    {
-        $json = file_get_contents('http://api.tvmaze.com/lookup/shows?tvrage=' . $rageId);
-        $obj = json_decode($json);
-
-        return $obj->name;
     }
 }

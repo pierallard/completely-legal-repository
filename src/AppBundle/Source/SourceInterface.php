@@ -2,6 +2,7 @@
 
 namespace AppBundle\Source;
 
+use AppBundle\Formatter\Result;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,10 +21,22 @@ interface SourceInterface
      * @param string $imdbId
      * @param string $scheme
      * @param string $httpPost
-     * @return array
+     *
+     * @return Result[]
      */
     public function searchMovie($search, $imdbId, $scheme, $httpPost);
 
+    /**
+     * @param $serieName
+     * @param $season
+     * @param $episode
+     * @param $offset
+     * @param $limit
+     * @param $scheme
+     * @param $httpPost
+     *
+     * @return Result[]
+     */
     public function searchTv($serieName, $season, $episode, $offset, $limit, $scheme, $httpPost);
 
     /**

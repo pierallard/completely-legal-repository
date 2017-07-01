@@ -2,6 +2,7 @@
 
 namespace AppBundle\Source;
 
+use AppBundle\Formatter\Result;
 use AppBundle\Helper\StringCleaner;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use voku\helper\HtmlDomParser;
@@ -25,26 +26,19 @@ class SourceTpb implements SourceInterface
         // TODO: Implement getTorrent() method.
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function searchMovie($search, $imdbId, $scheme, $httpPost)
     {
         $query = $this->baseUrl . '/search/' . \URLify::filter($search) . '/0/99/200';
 
-        $htmlStr = file_get_contents($query);
-        $html = HtmlDomParser::str_get_html($htmlStr);
-
-        $results = [
-            'results' => [],
-            'total_results' => 0
-        ];
-
-        foreach ($html->find('#searchResult tr:not(.header)') as $torrent) {
-            $results['results'][] = $this->toTorrentPotato($torrent, $scheme . '://' . $httpPost);
-            $results['total_results'] += 1;
-        }
-
-        return $results;
+        return $this->parseQuery($query, $httpPost);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function searchTv($serieName, $season, $episode, $offset, $limit, $scheme, $httpPost)
     {
         $search = $serieName;
@@ -58,27 +52,7 @@ class SourceTpb implements SourceInterface
 
         $query = $this->baseUrl . '/search/' . \URLify::filter($search) . '/0/99/200';
 
-        $htmlStr = file_get_contents($query);
-        $html = HtmlDomParser::str_get_html($htmlStr);
-
-        $xmlResults = '';
-        $count = 0;
-
-//        echo $html;
-//        die();
-
-        foreach ($html->find('#searchResult tr:not(.header)') as $torrent) {
-            if ('' === $torrent->find('td', 0)->getAttribute('colspan')) {
-                $count++;
-                $xmlResults .= $this->toTorznab($torrent, $scheme . '://' . $httpPost);
-            }
-        }
-
-        $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
-        $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
-        $xmlResult = str_replace('%%count%%', $count, $xmlResult);
-
-        return $xmlResult;
+        return $this->parseQuery($query, $httpPost);
     }
 
     /**
@@ -95,7 +69,7 @@ class SourceTpb implements SourceInterface
      *
      * @return integer
      */
-    private function parseSizeMb($torrent)
+    private function parseSize($torrent)
     {
         $description = $torrent->find('.detDesc', 0)->innerHtml;
         $matches = null;
@@ -103,63 +77,35 @@ class SourceTpb implements SourceInterface
 
         $number = floatval($matches['number']);
         if ('M' === $matches['unit']) {
-            $number = $number * 1000;
-        } else if ('G' === $matches['unit']) {
             $number = $number * 1000 * 1000;
+        } else if ('G' === $matches['unit']) {
+            $number = $number * 1000 * 1000 * 1000;
         }
 
         return intval($number);
     }
 
     /**
-     * @param SimpleHtmlDom $torrent
+     * @param string $query
      *
-     * @return array
+     * @return Result[]
      */
-    private function toTorrentPotato($torrent, $host)
+    private function parseQuery($query, $httpPost)
     {
-        $torrentId = preg_split('/\//', $torrent->find('.detLink', 0)->getAttribute('href'))[2];
+        $htmlStr = file_get_contents($query);
+        $html = HtmlDomParser::str_get_html($htmlStr);
 
-        return [
-            "release_name" => $torrent->find('.detLink',0)->innerHtml,
-            "torrent_id" => $torrentId,
-            "details_url" => $host . '/torrent/' . $torrentId,
-            "download_url" => $host . '/torrent/' . $torrentId,
-            "imdb_id" => '',
-            "freeleech" => true,
-            "type" => "movie",
-            "size" => $this->parseSizeMb($torrent),
-            "leechers" => intval($torrent->find('td', 3)->innerHtml),
-            "seeders" => intval($torrent->find('td', 2)->innerHtml)
-        ];
-    }
-
-    /**
-     * @param $torrent
-     *
-     * @return string
-     */
-    protected function toTorznab($torrent, $host)
-    {
-        $torrentId = preg_split('/\//', $torrent->find('.detLink', 0)->getAttribute('href'))[2];
-
-//        try {
-            $xmlResult = file_get_contents(__DIR__ . '/../Xml/item.xml');
-            $xmlResult = str_replace('%%title%%', $torrent->find('.detLink',0)->innerHtml, $xmlResult);
-            $xmlResult = str_replace('%%id%%', $torrentId, $xmlResult);
-            $xmlResult = str_replace('%%torrent%%', $host . '/torrent/' . $torrentId, $xmlResult);
-            $xmlResult = str_replace('%%size%%', $this->parseSizeMb($torrent) * 1024, $xmlResult);
-            $xmlResult = str_replace('%%pubDate%%', date('r', time()), $xmlResult);
-            $xmlResult = str_replace('%%category%%', '', $xmlResult);
-            $xmlResult = str_replace('%%comments%%', '', $xmlResult);
-            $xmlResult = str_replace('%%seeders%%', intval($torrent->find('td', 2)->innerHtml), $xmlResult);
-            $xmlResult = str_replace('%%leechers%%', intval($torrent->find('td', 3)->innerHtml), $xmlResult);
-
-            return $xmlResult;
-//        } catch (\Exception $e) {
-//            // TODO Log
-//            return '';
-//        }
+        return array_map(function (SimpleHtmlDom $torrent) use ($httpPost) {
+            $torrentId = preg_split('/\//', $torrent->find('.detLink', 0)->getAttribute('href'))[2];
+            return new Result(
+                $torrentId,
+                $torrent->find('.detLink',0)->innerHtml,
+                $httpPost . '/torrent/' . $torrentId,
+                $this->parseSize($torrent),
+                intval($torrent->find('td', 3)->innerHtml),
+                intval($torrent->find('td', 2)->innerHtml)
+            );
+        }, (array) $html->find('#searchResult tr:not(.header)'));
     }
 }
 
