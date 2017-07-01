@@ -31,13 +31,14 @@ class DefaultController extends Controller
     }
 
     /**
-     * @Route("/api", name="api")
+     * Entry for Sonarr search
+     * Example route is: /api?t=tvsearch&cat=5030,5040&extended=1&apikey=toto&offset=0&limit=100&ep=1&season=2&q=preacher
+     * Expected result is an XML described in src/AppBundle/Xml/ folder
      *
-     * Sonarr: /api?t=tvsearch&cat=5030,5040&extended=1&apikey=toto&offset=0&limit=100&ep=1&season=2
+     * @Route("/api", name="api")
      */
-    public function api(Request $request)
+    public function sonarrAction(Request $request)
     {
-        // Sonarr parameters
         $type = $request->get('t');
         $offset = intval($request->get('offset'));
         $limit = intval($request->get('limit'));
@@ -50,25 +51,16 @@ class DefaultController extends Controller
         // $extended = $request->get('extended') === '1';
         // $apikey = $request->get('apikey');
 
-        if ($type === 'tvsearch') {
-            $this->initSource();
-            $result = $this->source->searchTv($query, $rageId, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
-
-            $xmlResults = '';
-            $count = 0;
-
-            if (isset($result->torrents)) {
-                foreach ($result->torrents as $torrent) {
-                    if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
-                        $count++;
-                        $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
-                    }
-                }
+        if ($type === 'tvsearch' || $type === 'caps') {
+            $serieName = '';
+            if (null !== $rageId) {
+                $serieName = $this->getSerieNameFromRageId($rageId);
+            } else if (null !== $query) {
+                $serieName = $query;
             }
 
-            $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
-            $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
-            $xmlResult = str_replace('%%count%%', $count, $xmlResult);
+            $this->initSource();
+            $xmlResult = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
 
             $response = new Response($xmlResult);
             $response->headers->set('Content-Type', 'text/xml');
@@ -103,7 +95,7 @@ class DefaultController extends Controller
      *   "total_results": 4
      * }
      */
-    public function home(Request $request)
+    public function couchPotatoAction(Request $request)
     {
         $imdbId = $request->get('imdbid');
         $search = $request->get('search');
@@ -156,34 +148,21 @@ class DefaultController extends Controller
         return $response;
     }
 
-    /**
-     * @param $jsonItem
-     *
-     * @return string
-     */
-    protected function toTorznab($jsonItem, $host)
-    {
-        try {
-            $xmlResult = file_get_contents(__DIR__ . '/../Xml/item.xml');
-            $xmlResult = str_replace('%%title%%', $this->stringCleaner->cleanStr($jsonItem->name), $xmlResult);
-            $xmlResult = str_replace('%%id%%', $jsonItem->id, $xmlResult);
-            $xmlResult = str_replace('%%torrent%%', $host . '/torrent/' . $jsonItem->id, $xmlResult);
-            $xmlResult = str_replace('%%size%%', $jsonItem->size, $xmlResult);
-            $xmlResult = str_replace('%%pubDate%%', $jsonItem->added, $xmlResult);
-            $xmlResult = str_replace('%%category%%', $jsonItem->categoryname, $xmlResult);
-            $xmlResult = str_replace('%%comments%%', $jsonItem->comments, $xmlResult);
-            $xmlResult = str_replace('%%seeders%%', $jsonItem->seeders, $xmlResult);
-            $xmlResult = str_replace('%%leechers%%', $jsonItem->leechers, $xmlResult);
-
-            return $xmlResult;
-        } catch (\Exception $e) {
-            // TODO Log
-            return '';
-        }
-    }
-
     private function initSource()
     {
         $this->source->init($this->container);
+    }
+
+    /**
+     * @param $rageId
+     *
+     * @return string
+     */
+    protected function getSerieNameFromRageId($rageId)
+    {
+        $json = file_get_contents('http://api.tvmaze.com/lookup/shows?tvrage=' . $rageId);
+        $obj = json_decode($json);
+
+        return $obj->name;
     }
 }

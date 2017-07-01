@@ -67,15 +67,27 @@ class SourceT411 implements SourceInterface
         return $results;
     }
 
-    public function searchTv($query, $rageId, $season, $episode, $offset, $limit, $scheme, $httpPost)
+    public function searchTv($serieName, $season, $episode, $offset, $limit, $scheme, $httpPost)
     {
-        $serieName = '';
-        if (null !== $rageId) {
-            $serieName = $this->getSerieNameFromRageId($rageId);
-        } else if (null !== $query) {
-            $serieName = $query;
+        $result = $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
+
+        $xmlResults = '';
+        $count = 0;
+
+        if (isset($result->torrents)) {
+            foreach ($result->torrents as $torrent) {
+                if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
+                    $count++;
+                    $xmlResults .= $this->toTorznab($torrent, $scheme . '://' . $httpPost);
+                }
+            }
         }
-        return $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
+
+        $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
+        $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
+        $xmlResult = str_replace('%%count%%', $count, $xmlResult);
+
+        return $xmlResult;
     }
 
     public function getTorrent($torrentId, $sheme, $httpPost)
@@ -239,19 +251,6 @@ class SourceT411 implements SourceInterface
     }
 
     /**
-     * @param $rageId
-     *
-     * @return string
-     */
-    protected function getSerieNameFromRageId($rageId)
-    {
-        $json = file_get_contents('http://api.tvmaze.com/lookup/shows?tvrage=' . $rageId);
-        $obj = json_decode($json);
-
-        return $obj->name;
-    }
-
-    /**
      * @param $torrent
      *
      * @return array
@@ -270,5 +269,31 @@ class SourceT411 implements SourceInterface
             "leechers" => $torrent->leechers,
             "seeders" => $torrent->seeders,
         ];
+    }
+
+    /**
+     * @param $jsonItem
+     *
+     * @return string
+     */
+    protected function toTorznab($jsonItem, $host)
+    {
+        try {
+            $xmlResult = file_get_contents(__DIR__ . '/../Xml/item.xml');
+            $xmlResult = str_replace('%%title%%', $this->stringCleaner->cleanStr($jsonItem->name), $xmlResult);
+            $xmlResult = str_replace('%%id%%', $jsonItem->id, $xmlResult);
+            $xmlResult = str_replace('%%torrent%%', $host . '/torrent/' . $jsonItem->id, $xmlResult);
+            $xmlResult = str_replace('%%size%%', $jsonItem->size, $xmlResult);
+            $xmlResult = str_replace('%%pubDate%%', $jsonItem->added, $xmlResult);
+            $xmlResult = str_replace('%%category%%', $jsonItem->categoryname, $xmlResult);
+            $xmlResult = str_replace('%%comments%%', $jsonItem->comments, $xmlResult);
+            $xmlResult = str_replace('%%seeders%%', $jsonItem->seeders, $xmlResult);
+            $xmlResult = str_replace('%%leechers%%', $jsonItem->leechers, $xmlResult);
+
+            return $xmlResult;
+        } catch (\Exception $e) {
+            // TODO Log
+            return '';
+        }
     }
 }

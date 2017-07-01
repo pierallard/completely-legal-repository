@@ -24,7 +24,7 @@ interface SourceInterface
      */
     public function searchMovie($search, $imdbId, $scheme, $httpPost);
 
-    public function searchTv($query, $rageId, $season, $episode, $offset, $limit, $scheme, $httpPost);
+    public function searchTv($serieName, $season, $episode, $offset, $limit, $scheme, $httpPost);
 
     /**
      * @param ContainerInterface $container
