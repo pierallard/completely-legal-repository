@@ -5,7 +5,7 @@ namespace AppBundle\Metadata;
 class Category
 {
     /** @var string */
-    protected $id;
+    protected $identifier;
 
     /** @var string */
     protected $name;
@@ -16,9 +16,9 @@ class Category
     /** @var TermType[] */
     protected $termTypes;
 
-    public function __construct($id, $name)
+    public function __construct($identifier, $name)
     {
-        $this->id = $id;
+        $this->identifier = $identifier;
         $this->name = $name;
         $this->subCategories = [];
         $this->termTypes = [];
@@ -43,9 +43,9 @@ class Category
     /**
      * @return string
      */
-    public function getId()
+    public function getIdentifier()
     {
-        return $this->id;
+        return $this->identifier;
     }
 
     /**

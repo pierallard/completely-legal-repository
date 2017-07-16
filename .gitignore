@@ -7,4 +7,3 @@ vendor
 web/bundles
 app/config/parameters.yml
 var/bootstrap.php.cache
-

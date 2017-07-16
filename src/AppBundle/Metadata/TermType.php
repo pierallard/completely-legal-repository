@@ -5,7 +5,7 @@ namespace AppBundle\Metadata;
 class TermType
 {
     /** @var string */
-    protected $id;
+    protected $identifier;
 
     /** @var string */
     protected $name;
@@ -13,9 +13,15 @@ class TermType
     /** @var Term[] */
     protected $terms;
 
-    public function __construct($id, $name)
+    /**
+     * TermType constructor.
+     *
+     * @param $identifier
+     * @param $name
+     */
+    public function __construct($identifier, $name)
     {
-        $this->id = $id;
+        $this->identifier = $identifier;
         $this->name = $name;
         $this->terms = [];
     }
@@ -47,8 +53,8 @@ class TermType
     /**
      * @return string
      */
-    public function getId()
+    public function getIdentifier()
     {
-        return $this->id;
+        return $this->identifier;
     }
 }

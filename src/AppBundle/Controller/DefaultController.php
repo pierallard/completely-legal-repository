@@ -2,52 +2,60 @@
 
 namespace AppBundle\Controller;
 
-use AppBundle\Helper\MetadataProvider;
+use AppBundle\Formatter\FormatterRegistry;
+use AppBundle\Formatter\SonarrXmlFormatter;
+use AppBundle\Formatter\TorznabJsonFormatter;
+use AppBundle\Helper\RageProvider;
 use AppBundle\Helper\StringCleaner;
-use AppBundle\Helper\TrackerRemover;
+use AppBundle\Source\SourceInterface;
+use AppBundle\Source\SourceT411;
+use AppBundle\Source\SourceTpb;
 use GuzzleHttp\Client;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class DefaultController extends Controller
 {
-    /** @var string */
-    protected $token;
-
-    /** @var Client */
-    protected $t411client;
+    /** @var SourceInterface */
+    protected $source;
 
     /** @var StringCleaner */
     protected $stringCleaner;
 
-    /** @var MetadataProvider */
-    protected $metadataProvider;
+    /** @var FormatterRegistry */
+    protected $formatterRegistry;
+
+    /** @var RageProvider */
+    protected $rageProvider;
 
     /**
      * DefaultController constructor.
      */
     public function __construct()
     {
+//        $this->source = new SourceT411();
+        $this->source = new SourceTpb();
         $this->stringCleaner = new StringCleaner();
-        $this->trackerRemover = new TrackerRemover();
-        $this->metadataProvider = new MetadataProvider();
+        $this->formatterRegistry = new FormatterRegistry();
+        $this->rageProvider = new RageProvider();
+
+        $this->formatterRegistry
+            ->register(new TorznabJsonFormatter())
+            ->register(new SonarrXmlFormatter());
     }
 
     /**
-     * @Route("/api", name="api")
+     * Entry for Sonarr search
+     * Example route is: /api?t=tvsearch&cat=5030,5040&extended=1&apikey=toto&offset=0&limit=100&ep=1&season=2&q=preacher
+     * Expected result is an XML described in src/AppBundle/Xml/ folder
      *
-     * Sonarr: /api?t=tvsearch&cat=5030,5040&extended=1&apikey=toto&offset=0&limit=100&ep=1&season=2
+     * @Route("/api", name="api")
      */
-    public function api(Request $request)
+    public function sonarrAction(Request $request)
     {
-        // Sonarr parameters
         $type = $request->get('t');
-        $categories = preg_split('/,/', $request->get('cat'));
-        $extended = $request->get('extended') === '1';
-        $apikey = $request->get('apikey');
         $offset = intval($request->get('offset'));
         $limit = intval($request->get('limit'));
         $season = $request->get('season');
@@ -55,38 +63,28 @@ class DefaultController extends Controller
         $rageId = $request->get('rid');
         $query = $request->get('q');
 
-        if ($type === 'tvsearch') {
-            $serieName = '';
-            if (null !== $rageId) {
-                $serieName = $this->getSerieNameFromRageId($rageId);
-            } else if (null !== $query) {
-                $serieName = $query;
-            }
-            $result = $this->searchEpisodes($serieName, $season, $episode, $offset, $limit);
+        // $categories = preg_split('/,/', $request->get('cat'));
+        // $extended = $request->get('extended') === '1';
+        // $apikey = $request->get('apikey');
 
-            $xmlResults = '';
-            $count = 0;
-
-            if (isset($result->torrents)) {
-                foreach ($result->torrents as $torrent) {
-                    $count++;
-                    if (!isset($torrent->isVerified) || ('1' === $torrent->isVerified)) {
-                        $xmlResults .= $this->toTorznab($torrent, $request->getScheme() . '://' . $request->getHttpHost());
-                    }
-                }
-            }
-
-            $xmlResult = file_get_contents(__DIR__ . '/../Xml/api.xml');
-            $xmlResult = str_replace('<!-- results -->', $xmlResults, $xmlResult);
-            $xmlResult = str_replace('%%count%%', $count, $xmlResult);
-
-            $response = new Response($xmlResult);
-            $response->headers->set('Content-Type', 'text/xml');
-
-            return $response;
-        } else {
+        if ($type !== 'tvsearch' && $type !== 'caps') {
             throw new \Exception('Query type not found: "' . $type . '"');
         }
+
+        $serieName = '';
+        if (null !== $rageId) {
+            $serieName = $this->rageProvider->getSerieNameFromRageId($rageId);
+        } else if (null !== $query) {
+            $serieName = $query;
+        }
+
+        $this->initSource();
+        $results = $this->source->searchTv($serieName, $season, $episode, $offset, $limit, $request->getScheme(), $request->getHttpHost());
+
+        $response = new Response($this->formatterRegistry->get('sonarr')->format($results));
+        $response->headers->set('Content-Type', 'text/xml');
+
+        return $response;
     }
 
     /**
@@ -113,35 +111,24 @@ class DefaultController extends Controller
      *   "total_results": 4
      * }
      */
-    public function home(Request $request)
+    public function couchPotatoAction(Request $request)
     {
         $imdbId = $request->get('imdbid');
         $search = $request->get('search');
-        $user = $request->get('user');
-        $passkey = $request->get('passkey');
+        // $user = $request->get('user');
+        // $passkey = $request->get('passkey');
 
-        if (null !== $search) {
-            $result = $this->searchMovie($search);
-
-            $results = [
-                'results' => [],
-                'total_results' => 0
-            ];
-
-            if (isset($result->torrents)) {
-                foreach ($result->torrents as $torrent) {
-                    $results['results'][] = $this->toTorrentPotato($torrent, $request->getScheme() . '://' . $request->getHttpHost(), $imdbId);
-                    $results['total_results'] += 1;
-                }
-            }
-
-            $response = new Response(json_encode($results));
-            $response->headers->set('Content-Type', 'application/json');
-
-            return $response;
-        } else {
+        if (null === $search) {
             throw new \Exception('Search param required');
         }
+
+        $this->initSource();
+        $results = $this->source->searchMovie($search, $imdbId, $request->getScheme(), $request->getHttpHost());
+
+        $response = new Response(json_encode($this->formatterRegistry->get('torznab')->format($results)));
+        $response->headers->set('Content-Type', 'application/json');
+
+        return $response;
     }
 
     /**
@@ -149,27 +136,8 @@ class DefaultController extends Controller
      */
     public function torrent(Request $request)
     {
-        $filename = '/tmp/torrent' . $request->get('torrentId') . '.torrent';
-        $file = fopen($filename, 'w');
-
-        $t411Response = $this->getT411Client()->request(
-            'GET',
-            'torrents/download/' . $request->get('torrentId'), [
-                'headers' => ['Authorization' => $this->getToken()],
-                'save_to' => $file
-            ]
-        );
-        fclose($file);
-
-        $response = new Response(file_get_contents($this->trackerRemover->removeTracker(
-            $filename,
-            $request->getScheme() . '://' . $request->getHttpHost()
-        )));
-
-        $response->headers->set('Content-Disposition', $t411Response->getHeaders()['Content-Disposition']);
-        $response->headers->set('Content-Type', $t411Response->getHeaders()['Content-Type']);
-
-        return $response;
+        $this->initSource();
+        return $this->source->getTorrent($request->get('torrentId'), $request->getScheme(), $request->getHttpHost());
     }
 
     /**
@@ -197,198 +165,8 @@ class DefaultController extends Controller
         return $response;
     }
 
-    /**
-     * @param $jsonItem
-     *
-     * @return string
-     */
-    protected function toTorznab($jsonItem, $host)
+    private function initSource()
     {
-        try {
-            $xmlResult = file_get_contents(__DIR__ . '/../Xml/item.xml');
-            $xmlResult = str_replace('%%title%%', $this->stringCleaner->cleanStr($jsonItem->name), $xmlResult);
-            $xmlResult = str_replace('%%id%%', $jsonItem->id, $xmlResult);
-            $xmlResult = str_replace('%%torrent%%', $host . '/torrent/' . $jsonItem->id, $xmlResult);
-            $xmlResult = str_replace('%%size%%', $jsonItem->size, $xmlResult);
-            $xmlResult = str_replace('%%pubDate%%', $jsonItem->added, $xmlResult);
-            $xmlResult = str_replace('%%category%%', $jsonItem->categoryname, $xmlResult);
-            $xmlResult = str_replace('%%comments%%', $jsonItem->comments, $xmlResult);
-            $xmlResult = str_replace('%%seeders%%', $jsonItem->seeders, $xmlResult);
-            $xmlResult = str_replace('%%leechers%%', $jsonItem->leechers, $xmlResult);
-
-            return $xmlResult;
-        } catch (\Exception $e) {
-            // TODO Log
-            return '';
-        }
-    }
-
-    /**
-     * @return bool
-     *
-     * @throws \Exception
-     */
-    protected function login()
-    {
-        $response = $this->getT411Client()->request(
-            'POST',
-            '/auth', [
-                'form_params' => [
-                    'username' => $this->getParameter('t411_username'),
-                    'password' => $this->getParameter('t411_password'),
-                ]
-            ]
-        );
-
-        $json = json_decode($response->getBody());
-
-        if (isset($json->error)) {
-            throw new \Exception('Error on login. Code:' . $json->code);
-        }
-
-        $token = $json->token;
-        $this->token = $token;
-
-        return true;
-    }
-
-    /**
-     * Example of result:
-     * {
-     *     "query":null,
-     *     "offset":"0",
-     *     "limit":"100",
-     *     "total":"300000",
-     *     "torrents": [
-     *         {
-     *             "id": "5623202",
-     *             "name":"Campagne D\u00e9coration N 103 Janvier-F\u00e9vrier 2017 PDF",
-     *             "category":"410",
-     *             "rewritename":"campagne-d-coration-n-103-janvier-f-vrier-2017-pdf",
-     *             "seeders":"3",
-     *             "leechers":"2",
-     *             "comments":"0",
-     *             "isVerified":"0",
-     *             "added":"2016-12-22 12:51:57",
-     *             "size":"107416218",
-     *             "times_completed":"2",
-     *             "owner":"6402408",
-     *             "categoryname":"Presse",
-     *             "categoryimage":"ebook-press",
-     *             "username":"guerrierdelanuit",
-     *             "privacy":"normal"
-     *         }
-     *     ]
-     * }
-     *
-     * @return array
-     */
-    protected function searchEpisodes($query, $season, $episode, $offset = 0, $limit = 100)
-    {
-        $query = '/torrents/search/' . \URLify::filter($query) . '?offset=' . $offset . '&limit=' . $limit;
-
-        if (null !== $season) {
-            $seasonNumber = intval($season);
-            $metadata = $this->metadataProvider->getMetadata($this->getT411Client(), $this->getToken());
-            $query .= sprintf(
-                '&term[%s][]=%s',
-                $metadata->getSerieSeasonId(),
-                $metadata->getSerieSeason($seasonNumber)
-            );
-
-            if (null !== $episode) {
-                $episodeNumber = intval($episode);
-                $query .= sprintf(
-                    '&term[%s][]=%s',
-                    $metadata->getSerieEpisodeId(),
-                    $metadata->getSerieEpisode($episodeNumber)
-                );
-            }
-        }
-
-        return $this->queryFiles($query);
-    }
-
-    protected function searchMovie($search, $offset = 0, $limit = 100)
-    {
-        $query = '/torrents/search/' . \URLify::filter($search) . '?offset=' . $offset . '&limit=' . $limit;
-
-        return $this->queryFiles($query);
-    }
-
-    protected function queryFiles($query)
-    {
-        $response = $this->getT411Client()->request(
-            'GET',
-            $query, [
-                'headers' => ['Authorization' => $this->getToken()]
-            ]
-        );
-
-        $contents = $response->getBody()->getContents();
-        $realContent = $this->stringCleaner->strip_tags_content($contents);
-        $json = json_decode($realContent);
-
-        return $json;
-    }
-
-    /**
-     * @return string
-     *
-     * @throws \Exception
-     */
-    protected function getToken()
-    {
-        if (null === $this->token) {
-            $this->login();
-        }
-
-        return $this->token;
-    }
-
-    /**
-     * @return Client
-     */
-    protected function getT411Client()
-    {
-        if (null === $this->t411client) {
-            $this->t411client = new Client(['base_uri' => $this->getParameter('t411_base_url')]);
-        }
-
-        return $this->t411client;
-    }
-
-    /**
-     * @param $rageId
-     *
-     * @return string
-     */
-    protected function getSerieNameFromRageId($rageId)
-    {
-        $json = file_get_contents('http://api.tvmaze.com/lookup/shows?tvrage=' . $rageId);
-        $obj = json_decode($json);
-
-        return $obj->name;
-    }
-
-    /**
-     * @param $torrent
-     *
-     * @return array
-     */
-    private function toTorrentPotato($torrent, $host, $imdbid)
-    {
-        return [
-            "release_name" => $torrent->rewritename,
-            "torrent_id" => $torrent->id,
-            "details_url" => $host . '/torrent/' . $torrent->id,
-            "download_url" => $host . '/torrent/' . $torrent->id,
-            "imdb_id" => $imdbid,
-            "freeleech" => true,
-            "type" => "movie",
-            "size" => intval(intval($torrent->size) / (1024 * 1024)),
-            "leechers" => $torrent->leechers,
-            "seeders" => $torrent->seeders,
-        ];
+        $this->source->init($this->container);
     }
 }
