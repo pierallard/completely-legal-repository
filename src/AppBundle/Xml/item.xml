@@ -5,9 +5,8 @@
     <comments>%%comments%%</comments>
     <pubDate>%%pubDate%%</pubDate>
     <category>%%category%%</category>
-    <comments>%%category%%</comments>
     <description>desc</description>
-    <enclosure url="%%torrent%%" length="%%size%%" type="application/x-bittorrent"/>
+    <enclosure url="%%torrent%%" length="%%size%%" type="%%type%%"/>
     <torznab:attr name="seeders" value="%%seeders%%"/>
     <torznab:attr name="leechers" value="%%leechers%%"/>
 </item>

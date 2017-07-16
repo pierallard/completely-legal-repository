@@ -22,6 +22,9 @@ class Result
     /** @var int */
     protected $seeders;
 
+    /** @var string */
+    protected $type;
+
     /**
      * Result constructor.
      * @param string $torrentId
@@ -30,6 +33,7 @@ class Result
      * @param int $size,
      * @param int $leechers
      * @param int $seeders
+     * @param string $type
      */
     function __construct(
         $torrentId,
@@ -37,7 +41,8 @@ class Result
         $download,
         $size,
         $leechers,
-        $seeders
+        $seeders,
+        $type
     ) {
         $this->torrentId = $torrentId;
         $this->title = $title;
@@ -45,6 +50,7 @@ class Result
         $this->size = $size;
         $this->leechers = $leechers;
         $this->seeders = $seeders;
+        $this->type = $type;
     }
 
     /**
@@ -91,5 +97,12 @@ class Result
      */
     function getSeeders() {
         return $this->seeders;
+    }
+
+    /**
+     * @return string
+     */
+    function getType() {
+        return $this->type;
     }
 }

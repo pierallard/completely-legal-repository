@@ -36,21 +36,31 @@ class SonarrXmlFormatter implements FormatterInterface
         try {
             $xmlResult = file_get_contents(__DIR__ . '/../Xml/item.xml');
 
-            $xmlResult = str_replace('%%title%%', $result->getTitle(), $xmlResult);
-            $xmlResult = str_replace('%%id%%', $torrentId, $xmlResult);
-            $xmlResult = str_replace('%%torrent%%', $result->getDownload(), $xmlResult);
-            $xmlResult = str_replace('%%size%%', $result->getSize() * 1024, $xmlResult);
-            $xmlResult = str_replace('%%pubDate%%', date('r', time()), $xmlResult);
-            $xmlResult = str_replace('%%category%%', '', $xmlResult);
-            $xmlResult = str_replace('%%comments%%', '', $xmlResult);
-            $xmlResult = str_replace('%%seeders%%', $result->getSeeders(), $xmlResult);
-            $xmlResult = str_replace('%%leechers%%', $result->getLeechers(), $xmlResult);
+            $xmlResult = str_replace('%%title%%', $this->formatValue($result->getTitle()), $xmlResult);
+            $xmlResult = str_replace('%%id%%', $this->formatValue($torrentId), $xmlResult);
+            $xmlResult = str_replace('%%torrent%%', $this->formatValue($result->getDownload()), $xmlResult);
+            $xmlResult = str_replace('%%size%%', $this->formatValue($result->getSize()), $xmlResult);
+            $xmlResult = str_replace('%%pubDate%%', $this->formatValue(date('r', time())), $xmlResult);
+            $xmlResult = str_replace('%%category%%', $this->formatValue(''), $xmlResult);
+            $xmlResult = str_replace('%%comments%%', $this->formatValue(''), $xmlResult);
+            $xmlResult = str_replace('%%seeders%%', $this->formatValue($result->getSeeders()), $xmlResult);
+            $xmlResult = str_replace('%%leechers%%', $this->formatValue($result->getLeechers()), $xmlResult);
+            $xmlResult = str_replace('%%type%%', $this->formatValue($result->getType()), $xmlResult);
 
             return $xmlResult;
         } catch (\Exception $e) {
             // TODO Log
             return '';
         }
+    }
+
+    /**
+     * @param string $string
+     * @return string
+     */
+    private function formatValue($string)
+    {
+        return str_replace('&', '&amp;', $string);
     }
 
     /**
